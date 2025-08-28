@@ -9,11 +9,25 @@
     "start": "vercel dev"
   },
   "dependencies": {
-    "openai": "^4.56.0"
+    "openai": "^4.104.0"
   },
   "devDependencies": {
-    "@types/node": "^20.11.30",
-    "typescript": "^5.4.0",
+    "@types/node": "^20.19.11",
+    "@vercel/node": "^5.3.16",
+    "typescript": "^5.9.2",
     "vercel": "^33.7.0"
-  }
+  },
+  "description": "Vercel serverless function that forwards chat requests to OpenAI.",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thegraxisreal/graxybot-proxy.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/thegraxisreal/graxybot-proxy/issues"
+  },
+  "homepage": "https://github.com/thegraxisreal/graxybot-proxy#readme"
 }
