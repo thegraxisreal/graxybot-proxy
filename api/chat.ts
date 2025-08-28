@@ -1,5 +1,5 @@
 // Pin this endpoint to the Node runtime (prevents Edge errors like no `process`)
-export const config = { runtime: 'nodejs20.x' };
+export const config = { runtime: 'nodejs' };
 
 import OpenAI from 'openai';
 
