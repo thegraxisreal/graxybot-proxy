@@ -40,7 +40,6 @@ export default async function handler(req: any, res: any) {
       model: "gpt-image-1-mini",
       prompt: prompt.trim(),
       size,
-      response_format: "b64_json",
     });
 
     const data = result.data?.[0]?.b64_json;
