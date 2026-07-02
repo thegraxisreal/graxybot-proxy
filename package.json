@@ -8,9 +8,11 @@
     "start": "vercel dev"
   },
   "dependencies": {
+    "formidable": "^3.5.4",
     "openai": "^4.104.0"
   },
   "devDependencies": {
+    "@types/formidable": "^3.5.1",
     "@types/node": "^20.19.11",
     "@vercel/node": "^5.3.16",
     "typescript": "^5.9.2",

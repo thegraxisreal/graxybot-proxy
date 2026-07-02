@@ -6,17 +6,10 @@ export const config = {
 };
 
 import OpenAI from "openai";
+import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import fs from "node:fs/promises";
 
-type ChatMessage =
-  | { role: "user" | "assistant" | "system"; content: string }
-  | {
-      role: "user" | "assistant" | "system";
-      content: Array<
-        | { type: "text"; text: string }
-        | { type: "image_url"; image_url: { url: string } }
-      >;
-    };
+type ChatMessage = ChatCompletionMessageParam;
 
 export default async function handler(req: any, res: any) {
   // CORS for local/dev — restrict to your app’s origin in production
@@ -147,10 +140,6 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    if (stream) {
-      return res.status(400).json({ error: "Streaming not enabled yet" });
-    }
-
     const client = new OpenAI({ apiKey });
 
     // 👇 System prompt for Graxybot
@@ -169,6 +158,32 @@ IMPORTANT: If the user asks you to generate an image or video/animation, let the
 When asked for code, default to HTML.
 When generating code blocks, always use markdown format with language identifiers like \`\`\`python ... \`\`\``,
     };
+
+    if (stream) {
+      const completionStream = await client.chat.completions.create({
+        model: "gpt-4.1-mini",
+        messages: [systemPrompt, ...messages],
+        temperature: 0.7,
+        stream: true,
+      });
+
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
+      });
+
+      for await (const chunk of completionStream) {
+        const delta = chunk.choices?.[0]?.delta?.content;
+        if (delta) {
+          res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+        }
+      }
+
+      res.write("data: [DONE]\n\n");
+      return res.end();
+    }
 
     const completion = await client.chat.completions.create({
       model: "gpt-4.1-mini",
