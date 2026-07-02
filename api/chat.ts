@@ -161,7 +161,7 @@ When generating code blocks, always use markdown format with language identifier
 
     if (stream) {
       const completionStream = await client.chat.completions.create({
-        model: "gpt-4.1-mini",
+        model: "gpt-5.4-nano",
         messages: [systemPrompt, ...messages],
         temperature: 0.7,
         stream: true,
@@ -186,7 +186,7 @@ When generating code blocks, always use markdown format with language identifier
     }
 
     const completion = await client.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: "gpt-5.4-nano",
       messages: [systemPrompt, ...messages],
       temperature: 0.7,
     });

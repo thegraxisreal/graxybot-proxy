@@ -29,13 +29,6 @@ export default async function handler(req: any, res: any) {
   }
 
   const prompt = body?.prompt;
-  const size = typeof body?.size === "string" ? body.size : "1024x1024";
-  const qualityInput =
-    typeof body?.quality === "string" ? body.quality.toLowerCase() : undefined;
-  const quality =
-    qualityInput === "medium" || qualityInput === "high" || qualityInput === "low"
-      ? qualityInput
-      : "low";
   if (typeof prompt !== "string" || !prompt.trim()) {
     return res.status(400).json({ error: "prompt is required" });
   }
@@ -43,10 +36,11 @@ export default async function handler(req: any, res: any) {
   try {
     const client = new OpenAI({ apiKey });
     const result = await client.images.generate({
-      model: "gpt-image-1-mini",
+      model: "gpt-image-2",
       prompt: prompt.trim(),
-      size,
-      quality,
+      quality: "low",
+      size: "1536x1024",
+      n: 1,
     });
 
     const data = result.data?.[0]?.b64_json;
