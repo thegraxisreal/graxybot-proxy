@@ -33,6 +33,9 @@ export default async function handler(req: any, res: any) {
     let messages: ChatMessage[] | undefined;
     let stream = false;
     let imageDataUrl: string | undefined;
+    let imageDataUrls: string[] = [];
+    let userName: string | undefined;
+    let includeUserName = true;
 
     if (contentType.includes("multipart/form-data")) {
       // --- handle multipart (file upload) ---
@@ -43,7 +46,7 @@ export default async function handler(req: any, res: any) {
       });
 
       const { fields, files } = await new Promise<any>((resolve, reject) => {
-        form.parse(req, (err, fields, files) =>
+        form.parse(req, (err: any, fields: any, files: any) =>
           err ? reject(err) : resolve({ fields, files })
         );
       });
@@ -66,6 +69,20 @@ export default async function handler(req: any, res: any) {
         stream =
           String(Array.isArray(fields.stream) ? fields.stream[0] : fields.stream) ===
           "true";
+      }
+      if (fields.userName !== undefined) {
+        const rawName = Array.isArray(fields.userName)
+          ? fields.userName[0]
+          : fields.userName;
+        if (typeof rawName === "string") userName = rawName.trim();
+      }
+      if (fields.includeUserName !== undefined) {
+        includeUserName =
+          String(
+            Array.isArray(fields.includeUserName)
+              ? fields.includeUserName[0]
+              : fields.includeUserName
+          ) !== "false";
       }
 
       // handle image file
@@ -96,7 +113,14 @@ export default async function handler(req: any, res: any) {
           return res.status(400).json({ error: "Invalid JSON in request body" });
         }
       }
-      const { messages: m, stream: s, imageUrl } = body ?? {};
+      const {
+        messages: m,
+        stream: s,
+        imageUrl,
+        imageUrls,
+        userName: name,
+        includeUserName: useName,
+      } = body ?? {};
       if (!Array.isArray(m)) {
         return res
           .status(400)
@@ -104,8 +128,13 @@ export default async function handler(req: any, res: any) {
       }
       messages = m;
       stream = !!s;
+      if (typeof name === "string") userName = name.trim();
+      if (typeof useName === "boolean") includeUserName = useName;
       if (imageUrl && typeof imageUrl === "string") {
         imageDataUrl = imageUrl; // supports http(s) or data: URLs
+      }
+      if (Array.isArray(imageUrls)) {
+        imageDataUrls = imageUrls.filter((url: unknown): url is string => typeof url === "string");
       }
     }
 
@@ -113,15 +142,22 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: "No messages provided" });
     }
 
-    // attach image (if any) to the last user message
-    if (imageDataUrl) {
+    messages = messages.filter((message) => message.role !== "system");
+
+    const imagesToAttach = imageDataUrl ? [imageDataUrl] : imageDataUrls;
+
+    // attach images (if any) to the last user message
+    if (imagesToAttach.length > 0) {
       const idx = [...messages].reverse().findIndex((m) => m.role === "user");
       const userIdx = idx === -1 ? -1 : messages.length - 1 - idx;
 
       if (userIdx === -1) {
         messages.push({
           role: "user",
-          content: [{ type: "image_url", image_url: { url: imageDataUrl } }],
+          content: imagesToAttach.map((url) => ({
+            type: "image_url",
+            image_url: { url },
+          })),
         });
       } else {
         const msg = messages[userIdx] as ChatMessage;
@@ -129,34 +165,27 @@ export default async function handler(req: any, res: any) {
           const text = (msg as any).content as string;
           (messages[userIdx] as any).content = [
             { type: "text", text },
-            { type: "image_url", image_url: { url: imageDataUrl } },
+            ...imagesToAttach.map((url) => ({
+              type: "image_url",
+              image_url: { url },
+            })),
           ];
         } else {
-          (msg as any).content.push({
-            type: "image_url",
-            image_url: { url: imageDataUrl },
-          });
+          (msg as any).content.push(
+            ...imagesToAttach.map((url) => ({
+              type: "image_url",
+              image_url: { url },
+            }))
+          );
         }
       }
     }
 
     const client = new OpenAI({ apiKey });
 
-    // 👇 System prompt for Graxybot
     const systemPrompt: ChatMessage = {
       role: "system",
-      content: `You are Graxybot, a helpful AI assistant.
-Your creator is 'thegraxisreal'.
-
-IMPORTANT: When answering any questions about Global history or geography, or solving social studies homework sheets, all answers should be 1 or 2 words, formatted in all lowercase, with absolutely no restating of the question.
-When receiving said social studies sheets, questions 1-5 should be answered in 1 or 2 words in all lowercase, and the ending questions that are longer should be answered in 1 or 2 sentences, all at a 9th-grade level for those problems.
-Those restrictions only apply to global history questions. All other questions should be answered in lowercase and at a normal level.
-Provide only the final answer, without revealing your internal thought process or reasoning steps unless explicitly asked to explain.
-Keep your responses concise, helpful, and slightly informal.
-Refer to yourself as Graxybot.
-IMPORTANT: If the user asks you to generate an image or video/animation, let them know they can do that by pressing the buttons at the bottom of the screen, BUT if their prompt seems to ask directly for an image (e.g., 'draw a cat'), you should fulfill that request directly instead of referring them to the buttons.
-When asked for code, default to HTML.
-When generating code blocks, always use markdown format with language identifiers like \`\`\`python ... \`\`\``,
+      content: buildSystemPrompt({ userName, includeUserName }),
     };
 
     if (stream) {
@@ -202,4 +231,42 @@ When generating code blocks, always use markdown format with language identifier
       .status(500)
       .json({ error: "Proxy failed", detail: err?.message ?? String(err) });
   }
+}
+
+function buildSystemPrompt({
+  userName,
+  includeUserName,
+}: {
+  userName?: string;
+  includeUserName: boolean;
+}) {
+  const cleanName = userName?.trim();
+  const nameLine =
+    includeUserName && cleanName
+      ? `the user's name is ${cleanName}. use their name naturally when it fits, especially in greetings.`
+      : "do not force a name into the reply.";
+
+  return `you are graxybot, a helpful ai assistant.
+your creator is 'thegraxisreal'.
+
+style:
+- always write in lowercase.
+- keep normal chat very short, simple, and casual.
+- for a simple greeting, reply like: "hey ${cleanName || "there"} 😁 how can i help?" do not introduce yourself.
+- use at most one emoji when it makes the reply feel friendly. do not use emojis in every reply.
+- do not mention what model you are running on.
+- only refer to yourself as graxybot when the user asks who/what you are, asks about the app, or the name is genuinely relevant. do not say "graxybot here" or mention your name in routine replies.
+- provide only the final answer. do not reveal hidden reasoning unless the user explicitly asks for an explanation.
+${nameLine}
+
+global history and geography:
+- when answering global history/geography questions or solving social studies homework sheets, keep answers concise, accurate, and lowercase.
+- for numbered worksheet answers, questions 1-5 should usually be 1 or 2 words. longer ending questions can be 1 or 2 short sentences at a 9th-grade level.
+- do not restate the question unless the app asks for a question/answer structure.
+
+tools and code:
+- if the user asks how to generate an image or video/animation, mention the buttons at the bottom of the screen.
+- if the user directly asks you to draw or generate an image, fulfill the request directly instead of only referring them to buttons.
+- when asked for code without a language, default to html.
+- when generating code blocks, use markdown fences with language identifiers like \`\`\`python.`;
 }
